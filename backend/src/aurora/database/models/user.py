@@ -32,3 +32,9 @@ class User(UUIDMixin, TimestampMixin, Base):
         default=True,
         nullable=False,
     )
+
+    is_superuser: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )

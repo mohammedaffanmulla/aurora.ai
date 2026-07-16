@@ -6,6 +6,9 @@ from loguru import logger
 from aurora.api.health import router as health_router
 from aurora.core.config import settings
 from aurora.core.logging import configure_logging
+from aurora.api.v1.router import api_router
+
+
 
 
 @asynccontextmanager
@@ -26,3 +29,5 @@ app = FastAPI(
 )
 
 app.include_router(health_router)
+
+app.include_router(api_router, prefix="/api/v1")
