@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from aurora.database.models.user import User
 from aurora.database.session import get_db
+from aurora.modules.auth.dependencies import get_current_user
 from aurora.modules.auth.schemas import (
     RegisterRequest,
-    LoginRequest,
     TokenResponse,
     UserResponse,
 )
@@ -53,13 +55,13 @@ async def register(
     status_code=status.HTTP_200_OK,
 )
 async def login(
-    payload: LoginRequest,
+    form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
     user = await AuthService.authenticate(
         db,
-        payload.email,
-        payload.password,
+        form_data.username,
+        form_data.password,
     )
 
     if user is None:
@@ -75,3 +77,14 @@ async def login(
     return TokenResponse(
         access_token=access_token,
     )
+
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_me(
+    current_user: User = Depends(get_current_user),
+):
+    return current_user
