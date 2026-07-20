@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, UTC
 from typing import Any
+from uuid import UUID
 
 from jose import JWTError, jwt
 from pwdlib import PasswordHash
@@ -19,15 +20,34 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return password_hasher.verify(password, hashed_password)
 
 
-def create_access_token(subject: str) -> str:
+def create_access_token(subject: UUID | str) -> str:
     """Create a JWT access token."""
     expire = datetime.now(UTC) + timedelta(
         minutes=settings.access_token_expire_minutes
     )
 
     payload: dict[str, Any] = {
-        "sub": subject,
+        "sub": str(subject),
         "exp": expire,
+    }
+
+    return jwt.encode(
+        payload,
+        settings.secret_key,
+        algorithm=settings.algorithm,
+    )
+
+
+def create_refresh_token(subject: UUID | str) -> str:
+    """Create a JWT refresh token."""
+    expire = datetime.now(UTC) + timedelta(
+        days=settings.refresh_token_expire_days
+    )
+
+    payload: dict[str, Any] = {
+        "sub": str(subject),
+        "exp": expire,
+        "type": "refresh",
     }
 
     return jwt.encode(
@@ -47,3 +67,13 @@ def decode_access_token(token: str) -> dict[str, Any]:
         )
     except JWTError as exc:
         raise ValueError("Invalid or expired token") from exc
+
+
+def decode_refresh_token(token: str) -> dict[str, Any]:
+    """Decode and validate a refresh token."""
+    payload = decode_access_token(token)
+
+    if payload.get("type") != "refresh":
+        raise ValueError("Invalid refresh token")
+
+    return payload

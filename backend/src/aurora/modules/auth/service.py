@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +26,7 @@ class AuthService:
     @staticmethod
     async def get_user_by_id(
         db: AsyncSession,
-        user_id,
+        user_id: UUID,
     ) -> User | None:
 
         result = await db.execute(
