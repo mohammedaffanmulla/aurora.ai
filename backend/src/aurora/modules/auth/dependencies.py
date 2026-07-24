@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from aurora.database.session import get_db
 from aurora.modules.auth.security import decode_access_token
-from aurora.modules.auth.service import AuthService
+from aurora.modules.auth.services.auth_service import AuthService
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/v1/auth/login",

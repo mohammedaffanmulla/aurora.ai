@@ -18,7 +18,7 @@ from aurora.modules.auth.security import (
     create_refresh_token,
     decode_refresh_token,
 )
-from aurora.modules.auth.service import AuthService
+from aurora.modules.auth.services.auth_service import AuthService
 
 router = APIRouter(
     prefix="/auth",
@@ -35,61 +35,48 @@ async def register(
     payload: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    existing_user = await AuthService.get_user_by_email(
-        db,
-        payload.email,
-    )
+    service = AuthService(db)
 
-    if existing_user:
+    try:
+        user = await service.register(
+            email=payload.email,
+            password=payload.password,
+            full_name=payload.full_name,
+        )
+        return user
+
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+            detail=str(e),
         )
-
-    user = await AuthService.create_user(
-        db,
-        email=payload.email,
-        password=payload.password,
-        full_name=payload.full_name,
-    )
-
-    return user
-
 
 @router.post(
     "/login",
     response_model=TokenResponse,
-    status_code=status.HTTP_200_OK,
 )
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
-    user = await AuthService.authenticate(
-        db,
-        form_data.username,
-        form_data.password,
-    )
+    service = AuthService(db)
 
-    if user is None:
+    try:
+        user = await service.authenticate(
+            form_data.username,
+            form_data.password,
+        )
+
+    except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Invalid email or password",
         )
 
-    access_token = create_access_token(
-        subject=user.id,
-    )
-
-    refresh_token = create_refresh_token(
-        subject=user.id,
-    )
-
     return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(user.id),
     )
-
 
 @router.post(
     "/refresh",
@@ -110,9 +97,11 @@ async def refresh_token(
             detail="Invalid refresh token",
         )
 
-    user = await AuthService.get_user_by_id(
-        db,
-        UUID(token_payload["sub"]),
+    
+    service = AuthService(db)
+
+    user = await service.get_user(
+        UUID(token_payload["sub"])
     )
 
     if user is None:

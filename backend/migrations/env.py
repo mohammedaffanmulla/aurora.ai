@@ -17,7 +17,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE_DIR / "src"))
 
 from aurora.database.base import Base
-from aurora.database.models import user
+import aurora.database.models
 
 # -----------------------------------------------------
 # Alembic Config

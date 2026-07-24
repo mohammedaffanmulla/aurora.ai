@@ -7,9 +7,9 @@ class Settings(BaseSettings):
     debug: bool = True
 
     secret_key: str
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    refresh_token_expire_days: int = 30
+    ajwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
 
     database_url: str
 
