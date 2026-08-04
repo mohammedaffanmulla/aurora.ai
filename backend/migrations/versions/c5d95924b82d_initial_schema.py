@@ -1,8 +1,8 @@
 """initial_schema
 
-Revision ID: f73572539d57
+Revision ID: c5d95924b82d
 Revises: 
-Create Date: 2026-07-23 14:54:53.340397
+Create Date: 2026-08-01 15:57:58.060901
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'f73572539d57'
+revision: str = 'c5d95924b82d'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -43,52 +43,47 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_audit_logs_user_id'), 'audit_logs', ['user_id'], unique=False)
     op.create_table('email_verifications',
-    sa.Column('user_id', sa.UUID(), nullable=False),
-    sa.Column('token', sa.String(length=255), nullable=False),
-    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('used', sa.Boolean(), nullable=False),
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('token')
-    )
-    op.create_table('password_resets',
-    sa.Column('user_id', sa.UUID(), nullable=False),
-    sa.Column('token', sa.String(length=255), nullable=False),
-    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('used', sa.Boolean(), nullable=False),
-    sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('token')
-    )
-    op.create_table('refresh_tokens',
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('token_hash', sa.String(length=255), nullable=False),
     sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('revoked', sa.Boolean(), nullable=False),
+    sa.Column('used', sa.Boolean(), nullable=False),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('token_hash')
     )
-    op.create_index(op.f('ix_refresh_tokens_user_id'), 'refresh_tokens', ['user_id'], unique=False)
+    op.create_index(op.f('ix_email_verifications_user_id'), 'email_verifications', ['user_id'], unique=False)
+    op.create_table('password_resets',
+    sa.Column('user_id', sa.UUID(), nullable=False),
+    sa.Column('token_hash', sa.String(length=255), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('used', sa.Boolean(), nullable=False),
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('token_hash')
+    )
+    op.create_index(op.f('ix_password_resets_user_id'), 'password_resets', ['user_id'], unique=False)
     op.create_table('sessions',
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('refresh_token_id', sa.UUID(), nullable=True),
     sa.Column('device_name', sa.String(length=255), nullable=True),
+    sa.Column('browser', sa.String(length=255), nullable=True),
+    sa.Column('operating_system', sa.String(length=255), nullable=True),
     sa.Column('ip_address', sa.String(length=100), nullable=True),
     sa.Column('user_agent', sa.String(length=1000), nullable=True),
+    sa.Column('last_seen_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('revoked', sa.Boolean(), nullable=False),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
@@ -103,10 +98,27 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_workspaces_slug'), 'workspaces', ['slug'], unique=True)
+    op.create_table('refresh_tokens',
+    sa.Column('user_id', sa.UUID(), nullable=False),
+    sa.Column('session_id', sa.UUID(), nullable=False),
+    sa.Column('token_hash', sa.String(length=255), nullable=False),
+    sa.Column('family_id', sa.UUID(), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('revoked', sa.Boolean(), nullable=False),
+    sa.Column('replaced_by_token', sa.String(length=255), nullable=True),
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['session_id'], ['sessions.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_refresh_tokens_session_id'), 'refresh_tokens', ['session_id'], unique=False)
+    op.create_index(op.f('ix_refresh_tokens_user_id'), 'refresh_tokens', ['user_id'], unique=False)
     op.create_table('workspace_members',
     sa.Column('workspace_id', sa.UUID(), nullable=False),
     sa.Column('user_id', sa.UUID(), nullable=False),
@@ -114,9 +126,10 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['workspace_id'], ['workspaces.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['workspace_id'], ['workspaces.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('workspace_id', 'user_id', name='uq_workspace_member')
     )
     # ### end Alembic commands ###
 
@@ -125,14 +138,18 @@ def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('workspace_members')
+    op.drop_index(op.f('ix_refresh_tokens_user_id'), table_name='refresh_tokens')
+    op.drop_index(op.f('ix_refresh_tokens_session_id'), table_name='refresh_tokens')
+    op.drop_table('refresh_tokens')
     op.drop_index(op.f('ix_workspaces_slug'), table_name='workspaces')
     op.drop_table('workspaces')
     op.drop_index(op.f('ix_sessions_user_id'), table_name='sessions')
     op.drop_table('sessions')
-    op.drop_index(op.f('ix_refresh_tokens_user_id'), table_name='refresh_tokens')
-    op.drop_table('refresh_tokens')
+    op.drop_index(op.f('ix_password_resets_user_id'), table_name='password_resets')
     op.drop_table('password_resets')
+    op.drop_index(op.f('ix_email_verifications_user_id'), table_name='email_verifications')
     op.drop_table('email_verifications')
+    op.drop_index(op.f('ix_audit_logs_user_id'), table_name='audit_logs')
     op.drop_table('audit_logs')
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')

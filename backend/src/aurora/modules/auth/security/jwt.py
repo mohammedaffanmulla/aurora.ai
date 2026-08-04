@@ -1,105 +1,86 @@
-from datetime import UTC, datetime, timedelta
+"""
+JWT access-token handling plus opaque-token helpers.
+
+Access tokens are short-lived JWTs (stateless, verified via signature).
+Refresh / password-reset / email-verification tokens are random opaque
+strings: the raw value is handed to the client, only its SHA-256 hash is
+persisted server-side (so a DB leak doesn't expose usable tokens), and they
+are looked up + revoked directly in Postgres. This is why they are NOT JWTs.
+"""
+import hashlib
+import secrets
+import uuid
+from datetime import datetime, timedelta, timezone
+from enum import StrEnum
 from typing import Any
-from uuid import UUID
 
 from jose import JWTError, jwt
-from pwdlib import PasswordHash
 
-from aurora.core.config import settings
-
-# Password hasher (Argon2)
-password_hasher = PasswordHash.recommended()
+from aurora.modules.auth.config import settings
 
 
-def hash_password(password: str) -> str:
-    """
-    Hash a plain text password using Argon2.
-    """
-    return password_hasher.hash(password)
+class TokenType(StrEnum):
+    ACCESS = "access"
 
 
-def verify_password(password: str, hashed_password: str) -> bool:
-    """
-    Verify a plain text password against its hash.
-    """
-    return password_hasher.verify(password, hashed_password)
+class TokenError(Exception):
+    """Raised for any invalid/expired/malformed JWT."""
 
 
-def create_access_token(subject: UUID | str) -> str:
-    """
-    Create a JWT access token.
-    """
-    expire = datetime.now(UTC) + timedelta(
-        minutes=settings.access_token_expire_minutes
-    )
+def create_access_token(
+    *, user_id: uuid.UUID, session_id: uuid.UUID, extra_claims: dict[str, Any] | None = None
+) -> str:
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=settings.auth_access_token_expire_minutes)
 
     payload: dict[str, Any] = {
-        "sub": str(subject),
+        "sub": str(user_id),
+        "sid": str(session_id),
+        "type": TokenType.ACCESS,
+        "iat": now,
         "exp": expire,
-        "type": "access",
+        "jti": str(uuid.uuid4()),
     }
+    if extra_claims:
+        payload.update(extra_claims)
 
-    return jwt.encode(
-        payload,
-        settings.secret_key,
-        algorithm=settings.algorithm,
-    )
-
-
-def create_refresh_token(subject: UUID | str) -> str:
-    """
-    Create a JWT refresh token.
-    """
-    expire = datetime.now(UTC) + timedelta(
-        days=settings.refresh_token_expire_days
-    )
-
-    payload: dict[str, Any] = {
-        "sub": str(subject),
-        "exp": expire,
-        "type": "refresh",
-    }
-
-    return jwt.encode(
-        payload,
-        settings.secret_key,
-        algorithm=settings.algorithm,
-    )
+    return jwt.encode(payload, settings.auth_jwt_secret_key, algorithm=settings.auth_jwt_algorithm)
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
-    """
-    Decode and validate a JWT access token.
-    """
+    """Decode + validate an access token. Raises TokenError on any failure."""
     try:
-        payload = jwt.decode(
-            token,
-            settings.secret_key,
-            algorithms=[settings.algorithm],
-        )
+        payload = jwt.decode(token, settings.auth_jwt_secret_key, algorithms=[settings.auth_jwt_algorithm])
     except JWTError as exc:
-        raise ValueError("Invalid or expired access token") from exc
+        raise TokenError("Invalid or expired access token") from exc
 
-    if payload.get("type") != "access":
-        raise ValueError("Invalid access token")
+    if payload.get("type") != TokenType.ACCESS:
+        raise TokenError("Unexpected token type")
 
     return payload
 
 
-def decode_refresh_token(token: str) -> dict[str, Any]:
-    """
-    Decode and validate a JWT refresh token.
-    """
-    try:
-        payload = jwt.decode(
-            token,
-            settings.secret_key,
-            algorithms=[settings.algorithm],
-        )
-    except JWTError as exc:
-        raise ValueError("Invalid or expired refresh token") from exc
+# ---------------------------------------------------------------------------
+# Opaque tokens (refresh tokens, password reset, email verification)
+# ---------------------------------------------------------------------------
 
-    if payload.get("type") != "refresh":
-        raise ValueError("Invalid refresh token")
+def generate_opaque_token() -> str:
+    """A URL-safe, cryptographically random token to hand to the client."""
+    return secrets.token_urlsafe(48)
 
-    return payload
+
+def hash_opaque_token(raw_token: str) -> str:
+    """One-way hash of an opaque token for safe DB storage/lookup."""
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def refresh_token_expiry() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(days=settings.auth_refresh_token_expire_days)
+
+
+def password_reset_token_expiry() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(minutes=settings.auth_password_reset_token_expire_minutes)
+
+
+def email_verification_token_expiry() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(hours=settings.auth_email_verification_token_expire_hours)

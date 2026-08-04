@@ -1,8 +1,6 @@
-from __future__ import annotations
+import uuid
 
-from uuid import UUID
-
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aurora.database.models import EmailVerification
@@ -14,69 +12,41 @@ class EmailVerificationRepository:
 
     async def create(
         self,
-        verification: EmailVerification,
+        *,
+        user_id: uuid.UUID,
+        token_hash: str,
+        expires_at,
     ) -> EmailVerification:
-        self.db.add(verification)
-        await self.db.commit()
-        await self.db.refresh(verification)
-        return verification
+        token = EmailVerification(
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+        )
+        self.db.add(token)
+        await self.db.flush()
+        return token
 
-    async def get_by_id(
-        self,
-        verification_id: UUID,
-    ) -> EmailVerification | None:
+    async def get_by_hash(self, token_hash: str) -> EmailVerification | None:
         result = await self.db.execute(
             select(EmailVerification).where(
-                EmailVerification.id == verification_id
+                EmailVerification.token_hash == token_hash
             )
         )
         return result.scalar_one_or_none()
 
-    async def get_by_token(
-        self,
-        token: str,
-    ) -> EmailVerification | None:
+    async def mark_used(self, token: EmailVerification) -> None:
+        token.used = True
+        await self.db.flush()
+
+    async def invalidate_all_for_user(self, user_id: uuid.UUID) -> None:
         result = await self.db.execute(
             select(EmailVerification).where(
-                EmailVerification.token == token
+                EmailVerification.user_id == user_id,
+                EmailVerification.used.is_(False),
             )
         )
-        return result.scalar_one_or_none()
 
-    async def get_user_verifications(
-        self,
-        user_id: UUID,
-    ) -> list[EmailVerification]:
-        result = await self.db.execute(
-            select(EmailVerification).where(
-                EmailVerification.user_id == user_id
-            )
-        )
-        return list(result.scalars().all())
+        for token in result.scalars().all():
+            token.used = True
 
-    async def mark_used(
-        self,
-        verification: EmailVerification,
-    ) -> EmailVerification:
-        verification.used = True
-        await self.db.commit()
-        await self.db.refresh(verification)
-        return verification
-
-    async def delete(
-        self,
-        verification: EmailVerification,
-    ) -> None:
-        await self.db.delete(verification)
-        await self.db.commit()
-
-    async def delete_by_user(
-        self,
-        user_id: UUID,
-    ) -> None:
-        await self.db.execute(
-            delete(EmailVerification).where(
-                EmailVerification.user_id == user_id
-            )
-        )
-        await self.db.commit()
+        await self.db.flush()

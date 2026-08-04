@@ -1,3 +1,5 @@
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -5,13 +7,13 @@ from sqlalchemy.ext.asyncio import (
 
 from aurora.database.engine import engine
 
-AsyncSessionLocal = async_sessionmaker(
+SessionLocal = async_sessionmaker(
     bind=engine,
-    autoflush=False,
+    class_=AsyncSession,
     expire_on_commit=False,
 )
 
 
-async def get_db():
-    async with AsyncSessionLocal() as session:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with SessionLocal() as session:
         yield session

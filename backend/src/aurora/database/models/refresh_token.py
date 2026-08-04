@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -12,6 +12,7 @@ from aurora.database.base import Base
 from aurora.database.mixins import TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from .session import Session
     from .user import User
 
 
@@ -21,6 +22,13 @@ class RefreshToken(UUIDMixin, TimestampMixin, Base):
     user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    session_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -55,10 +63,22 @@ class RefreshToken(UUIDMixin, TimestampMixin, Base):
         back_populates="refresh_tokens",
     )
 
+    session: Mapped["Session"] = relationship(
+        back_populates="refresh_tokens",
+    )
+
+    @property
+    def is_active(self) -> bool:
+        return (
+            not self.revoked
+            and self.expires_at > datetime.now(timezone.utc)
+        )
+
     def __repr__(self) -> str:
         return (
             f"RefreshToken("
             f"id={self.id}, "
             f"user_id={self.user_id}, "
+            f"session_id={self.session_id}, "
             f"revoked={self.revoked})"
         )

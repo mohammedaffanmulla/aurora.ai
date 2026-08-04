@@ -1,8 +1,7 @@
-from __future__ import annotations
+import uuid
+from datetime import datetime
 
-from uuid import UUID
-
-from sqlalchemy import delete, select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aurora.database.models import RefreshToken
@@ -12,17 +11,24 @@ class RefreshTokenRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, token: RefreshToken) -> RefreshToken:
-        self.db.add(token)
-        await self.db.commit()
-        await self.db.refresh(token)
-        return token
-
-    async def get_by_id(self, token_id: UUID) -> RefreshToken | None:
-        result = await self.db.execute(
-            select(RefreshToken).where(RefreshToken.id == token_id)
+    async def create(
+        self,
+        *,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        token_hash: str,
+        expires_at: datetime,
+    ) -> RefreshToken:
+        token = RefreshToken(
+            user_id=user_id,
+            session_id=session_id,
+            token_hash=token_hash,
+            family_id=uuid.uuid4(),
+            expires_at=expires_at,
         )
-        return result.scalar_one_or_none()
+        self.db.add(token)
+        await self.db.flush()
+        return token
 
     async def get_by_hash(self, token_hash: str) -> RefreshToken | None:
         result = await self.db.execute(
@@ -32,49 +38,43 @@ class RefreshTokenRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_user_tokens(
-        self,
-        user_id: UUID,
-    ) -> list[RefreshToken]:
-        result = await self.db.execute(
-            select(RefreshToken).where(
-                RefreshToken.user_id == user_id
-            )
-        )
-        return list(result.scalars().all())
-
     async def revoke(
         self,
         token: RefreshToken,
-    ) -> RefreshToken:
-        token.revoked = True
-        await self.db.commit()
-        await self.db.refresh(token)
-        return token
-
-    async def revoke_all(
-        self,
-        user_id: UUID,
+        *,
+        replaced_by_token_id: uuid.UUID | None = None,
     ) -> None:
-        result = await self.db.execute(
-            select(RefreshToken).where(
-                RefreshToken.user_id == user_id
-            )
-        )
+        token.revoked = True
 
-        for token in result.scalars():
-            token.revoked = True
+        if replaced_by_token_id is not None:
+            token.replaced_by_token = str(replaced_by_token_id)
 
-        await self.db.commit()
+        await self.db.flush()
 
-    async def delete(self, token: RefreshToken) -> None:
-        await self.db.delete(token)
-        await self.db.commit()
-
-    async def delete_by_user(self, user_id: UUID) -> None:
+    async def revoke_all_for_session(
+        self,
+        session_id: uuid.UUID,
+    ) -> None:
         await self.db.execute(
-            delete(RefreshToken).where(
-                RefreshToken.user_id == user_id
+            update(RefreshToken)
+            .where(
+                RefreshToken.session_id == session_id,
+                RefreshToken.revoked.is_(False),
             )
+            .values(revoked=True)
         )
-        await self.db.commit()
+        await self.db.flush()
+
+    async def revoke_all_for_user(
+        self,
+        user_id: uuid.UUID,
+    ) -> None:
+        await self.db.execute(
+            update(RefreshToken)
+            .where(
+                RefreshToken.user_id == user_id,
+                RefreshToken.revoked.is_(False),
+            )
+            .values(revoked=True)
+        )
+        await self.db.flush()

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -25,7 +25,7 @@ class PasswordReset(UUIDMixin, TimestampMixin, Base):
         index=True,
     )
 
-    token: Mapped[str] = mapped_column(
+    token_hash: Mapped[str] = mapped_column(
         String(255),
         unique=True,
         nullable=False,
@@ -45,6 +45,13 @@ class PasswordReset(UUIDMixin, TimestampMixin, Base):
     user: Mapped["User"] = relationship(
         back_populates="password_resets",
     )
+
+    @property
+    def is_valid(self) -> bool:
+        return (
+            not self.used
+            and self.expires_at > datetime.now(timezone.utc)
+        )
 
     def __repr__(self) -> str:
         return (

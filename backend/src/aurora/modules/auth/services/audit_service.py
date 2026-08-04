@@ -1,40 +1,42 @@
-from __future__ import annotations
-
-from uuid import UUID
+import uuid
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aurora.database.models import AuditLog
-from aurora.modules.auth.repositories.audit_log_repository import (
-    AuditLogRepository,
-)
+from aurora.modules.auth.repositories.audit_log_repository import AuditLogRepository
+
+
+class AuditEvent:
+    REGISTER = "user.register"
+    LOGIN_SUCCESS = "user.login.success"
+    LOGIN_FAILURE = "user.login.failure"
+    TOKEN_REFRESH = "token.refresh"
+    LOGOUT = "user.logout"
+    LOGOUT_ALL = "user.logout_all"
+    PASSWORD_CHANGED = "password.changed"
+    PASSWORD_RESET_REQUESTED = "password.reset_requested"
+    PASSWORD_RESET_COMPLETED = "password.reset_completed"
+    EMAIL_VERIFIED = "email.verified"
+    EMAIL_VERIFICATION_RESENT = "email.verification_resent"
 
 
 class AuditService:
     def __init__(self, db: AsyncSession):
-        self.db = db
-        self.audit_logs = AuditLogRepository(db)
+        self.repo = AuditLogRepository(db)
 
     async def log(
         self,
-        action: str,
-        user_id: UUID | None = None,
-        resource_type: str | None = None,
-        resource_id: str | None = None,
-        event_data: dict | None = None,
-    ) -> AuditLog:
-        log = AuditLog(
+        *,
+        event_type: str,
+        user_id: uuid.UUID | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        await self.repo.create(
+            event_type=event_type,
             user_id=user_id,
-            action=action,
-            resource_type=resource_type,
-            resource_id=resource_id,
-            event_data=event_data,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            metadata=metadata,
         )
-
-        return await self.audit_logs.create(log)
-
-    async def get_user_logs(
-        self,
-        user_id: UUID,
-    ) -> list[AuditLog]:
-        return await self.audit_logs.get_by_user(user_id)

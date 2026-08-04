@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from uuid import UUID
+import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,13 +10,7 @@ class UserRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, user: User) -> User:
-        self.db.add(user)
-        await self.db.commit()
-        await self.db.refresh(user)
-        return user
-
-    async def get_by_id(self, user_id: UUID) -> User | None:
+    async def get_by_id(self, user_id: uuid.UUID) -> User | None:
         result = await self.db.execute(
             select(User).where(User.id == user_id)
         )
@@ -26,30 +18,47 @@ class UserRepository:
 
     async def get_by_email(self, email: str) -> User | None:
         result = await self.db.execute(
-            select(User).where(User.email == email)
+            select(User).where(User.email == email.lower())
         )
         return result.scalar_one_or_none()
 
-    async def update(self, user: User) -> User:
-        await self.db.commit()
-        await self.db.refresh(user)
+    async def create(
+        self,
+        *,
+        email: str,
+        password_hash: str,
+        full_name: str | None,
+    ) -> User:
+        user = User(
+            email=email.lower(),
+            password_hash=password_hash,
+            full_name=full_name,
+        )
+        self.db.add(user)
+        await self.db.flush()
         return user
 
-    async def delete(self, user: User) -> None:
-        await self.db.delete(user)
-        await self.db.commit()
+    async def update_password(
+        self,
+        user: User,
+        *,
+        password_hash: str,
+    ) -> User:
+        user.password_hash = password_hash
+        await self.db.flush()
+        return user
 
-    async def exists(self, email: str) -> bool:
-        return await self.get_by_email(email) is not None
-
-    async def verify_email(self, user: User) -> User:
+    async def mark_email_verified(self, user: User) -> User:
         user.is_verified = True
-        await self.db.commit()
-        await self.db.refresh(user)
+        await self.db.flush()
         return user
 
-    async def deactivate(self, user: User) -> User:
-        user.is_active = False
-        await self.db.commit()
-        await self.db.refresh(user)
+    async def set_active(
+        self,
+        user: User,
+        *,
+        is_active: bool,
+    ) -> User:
+        user.is_active = is_active
+        await self.db.flush()
         return user

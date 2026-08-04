@@ -1,11 +1,10 @@
-from __future__ import annotations
+import uuid
 
-from uuid import UUID
-
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aurora.database.models import PasswordReset
+
 
 
 class PasswordResetRepository:
@@ -14,69 +13,41 @@ class PasswordResetRepository:
 
     async def create(
         self,
-        password_reset: PasswordReset,
+        *,
+        user_id: uuid.UUID,
+        token_hash: str,
+        expires_at,
     ) -> PasswordReset:
-        self.db.add(password_reset)
-        await self.db.commit()
-        await self.db.refresh(password_reset)
-        return password_reset
+        token = PasswordReset(
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+        )
+        self.db.add(token)
+        await self.db.flush()
+        return token
 
-    async def get_by_id(
-        self,
-        reset_id: UUID,
-    ) -> PasswordReset | None:
+    async def get_by_hash(self, token_hash: str) -> PasswordReset | None:
         result = await self.db.execute(
             select(PasswordReset).where(
-                PasswordReset.id == reset_id
+                PasswordReset.token_hash == token_hash
             )
         )
         return result.scalar_one_or_none()
 
-    async def get_by_token(
-        self,
-        token: str,
-    ) -> PasswordReset | None:
+    async def mark_used(self, token: PasswordReset) -> None:
+        token.used = True
+        await self.db.flush()
+
+    async def invalidate_all_for_user(self, user_id: uuid.UUID) -> None:
         result = await self.db.execute(
             select(PasswordReset).where(
-                PasswordReset.token == token
+                PasswordReset.user_id == user_id,
+                PasswordReset.used.is_(False),
             )
         )
-        return result.scalar_one_or_none()
 
-    async def get_user_requests(
-        self,
-        user_id: UUID,
-    ) -> list[PasswordReset]:
-        result = await self.db.execute(
-            select(PasswordReset).where(
-                PasswordReset.user_id == user_id
-            )
-        )
-        return list(result.scalars().all())
+        for token in result.scalars().all():
+            token.used = True
 
-    async def mark_used(
-        self,
-        password_reset: PasswordReset,
-    ) -> PasswordReset:
-        password_reset.used = True
-        await self.db.commit()
-        await self.db.refresh(password_reset)
-        return password_reset
-
-    async def delete(
-        self,
-        password_reset: PasswordReset,
-    ) -> None:
-        await self.db.delete(password_reset)
-        await self.db.commit()
-
-    async def delete_by_user(
-        self,
-        user_id: UUID,
-    ) -> None:
-        await self.db.execute(
-            delete(PasswordReset).where(
-                PasswordReset.user_id == user_id
-            )
-        )
-        await self.db.commit()
+        await self.db.flush()

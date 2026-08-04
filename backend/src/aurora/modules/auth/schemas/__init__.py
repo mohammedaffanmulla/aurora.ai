@@ -1,75 +1,30 @@
-from .auth import (
-    ErrorResponse,
+from aurora.modules.auth.schemas.auth import (
     LoginRequest,
-    LogoutRequest,
     MessageResponse,
-    RefreshTokenRequest,
+    RefreshRequest,
     RegisterRequest,
     TokenResponse,
     UserResponse,
 )
-
-from .email import (
-    EmailResponse,
-    EmailVerificationResponse,
-    ResendVerificationRequest,
-    VerifyEmailRequest,
-)
-
-from .password import (
+from aurora.modules.auth.schemas.email import ResendVerificationRequest, VerifyEmailRequest
+from aurora.modules.auth.schemas.password import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
-    PasswordResetResponse,
-    PasswordValidationResponse,
     ResetPasswordRequest,
 )
-
-from .session import (
-    RevokeAllSessionsResponse,
-    RevokeSessionRequest,
-    SessionListResponse,
-    SessionResponse,
-)
-
-from .token import (
-    AccessToken,
-    RefreshToken,
-    RefreshTokenPayload,
-    TokenBlacklistResponse,
-    TokenMetadata,
-    TokenPair,
-    TokenPayload,
-    TokenValidationResponse,
-)
+from aurora.modules.auth.schemas.session import SessionResponse
 
 __all__ = [
-    "RegisterRequest",
     "LoginRequest",
-    "RefreshTokenRequest",
-    "LogoutRequest",
+    "MessageResponse",
+    "RefreshRequest",
+    "RegisterRequest",
     "TokenResponse",
     "UserResponse",
-    "MessageResponse",
-    "ErrorResponse",
+    "ResendVerificationRequest",
+    "VerifyEmailRequest",
+    "ChangePasswordRequest",
     "ForgotPasswordRequest",
     "ResetPasswordRequest",
-    "ChangePasswordRequest",
-    "PasswordResetResponse",
-    "PasswordValidationResponse",
-    "VerifyEmailRequest",
-    "ResendVerificationRequest",
-    "EmailVerificationResponse",
-    "EmailResponse",
     "SessionResponse",
-    "SessionListResponse",
-    "RevokeSessionRequest",
-    "RevokeAllSessionsResponse",
-    "AccessToken",
-    "RefreshToken",
-    "TokenPair",
-    "TokenPayload",
-    "RefreshTokenPayload",
-    "TokenValidationResponse",
-    "TokenBlacklistResponse",
-    "TokenMetadata",
 ]

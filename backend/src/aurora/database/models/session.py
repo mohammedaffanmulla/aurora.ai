@@ -13,6 +13,10 @@ from aurora.database.mixins import TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from .user import User
+    if TYPE_CHECKING:
+        from .user import User
+
+        from .refresh_token import RefreshToken
 
 
 class Session(UUIDMixin, TimestampMixin, Base):
@@ -73,6 +77,10 @@ class Session(UUIDMixin, TimestampMixin, Base):
 
     user: Mapped["User"] = relationship(
         back_populates="sessions",
+    )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
